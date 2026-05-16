@@ -1,16 +1,16 @@
-﻿name: Destroy AWS Infrastructure
+﻿name: Destroy AWS Infrastructure (Complet)
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Tapez "CONFIRM" pour confirmer la suppression'
+        description: 'Tapez "CONFIRM" pour confirmer la suppression TOTALE'
         required: true
         type: string
 
 jobs:
-  destroy:
-    name: Destroy All Resources
+  destroy-all:
+    name: Destroy ALL AWS Resources
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -44,9 +44,32 @@ jobs:
 
       - name: Terraform Destroy
         run: terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
+        continue-on-error: true
 
-      - name: Nettoyage final des ressources orphelines
+      - name: Nettoyage forcé des ressources orphelines
         run: |
-          echo "🧹 Nettoyage des ressources restantes..."
-          aws elbv2 delete-load-balancer --load-balancer-arn $(aws elbv2 describe-load-balancers --names ecommerce-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text) 2>/dev/null || echo "ALB déjà supprimé"
-          aws elbv2 delete-target-group --target-group-arn $(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[0].TargetGroupArn' --output text) 2>/dev/null || echo "Target Group déjà supprimé"
+          echo "🧹 Suppression des instances EC2..."
+          for instance_id in $(aws ec2 describe-instances --filters "Name=tag:Name,Values=EC2-Web-*" "Name=instance-state-name,Values=running" --query 'Reservations[*].Instances[*].InstanceId' --output text); do
+            echo "Terminaison de l'instance: $instance_id"
+            aws ec2 terminate-instances --instance-ids $instance_id
+          done
+
+          echo "🧹 Suppression des Load Balancers..."
+          for alb_arn in $(aws elbv2 describe-load-balancers --names ecommerce-alb --query 'LoadBalancers[*].LoadBalancerArn' --output text 2>/dev/null); do
+            echo "Suppression de l'ALB: $alb_arn"
+            aws elbv2 delete-load-balancer --load-balancer-arn $alb_arn
+          done
+
+          echo "🧹 Suppression des Target Groups..."
+          for tg_arn in $(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[*].TargetGroupArn' --output text 2>/dev/null); do
+            echo "Suppression du Target Group: $tg_arn"
+            aws elbv2 delete-target-group --target-group-arn $tg_arn
+          done
+
+          echo "🧹 Suppression des VPC orphelins..."
+          for vpc_id in $(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ecommerce-vpc" --query 'Vpcs[*].VpcId' --output text); do
+            echo "Suppression du VPC: $vpc_id"
+            aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "Impossible de supprimer $vpc_id (peut-être déjà fait)"
+          done
+
+          echo "✅ Nettoyage terminé !"
