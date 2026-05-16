@@ -2,34 +2,36 @@
 - name: Déploiement de l'application e-commerce
   hosts: web
   become: yes
+  gather_facts: no
   vars:
     app_dir: /opt/ecommerce
 
   tasks:
 
     - name: Mise à jour des paquets
-      yum:
-        name: "*"
-        state: latest
-      when: ansible_os_family == "RedHat"
+      command: yum update -y
+      register: result
+      changed_when: result.rc == 0
 
-    - name: Installer Docker (Amazon Linux)
-      yum:
-        name: docker
-        state: present
-      when: ansible_os_family == "RedHat"
+    - name: Installer Docker
+      command: yum install -y docker
+      register: result
+      changed_when: result.rc == 0
 
-    - name: Démarrer et activer Docker
-      service:
-        name: docker
-        state: started
-        enabled: yes
+    - name: Démarrer Docker
+      command: systemctl start docker
+      register: result
+      changed_when: result.rc == 0
+
+    - name: Activer Docker au démarrage
+      command: systemctl enable docker
+      register: result
+      changed_when: result.rc == 0
 
     - name: Ajouter ec2-user au groupe docker
-      user:
-        name: ec2-user
-        groups: docker
-        append: yes
+      command: usermod -aG docker ec2-user
+      register: result
+      changed_when: result.rc == 0
 
     - name: Installer Docker Compose
       get_url:
