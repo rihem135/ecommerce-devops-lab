@@ -7,9 +7,6 @@ on:
 
 jobs:
 
-  # ============================================
-  # JOB 1 : TERRAFORM — Créer l'infrastructure
-  # ============================================
   terraform:
     name: Provision Infrastructure
     runs-on: ubuntu-latest
@@ -23,14 +20,15 @@ jobs:
     steps:
 
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          region:                ${{ secrets.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -53,9 +51,6 @@ jobs:
           IPS=$(terraform output -json instance_public_ips | jq -r '.[]' | tr '\n' ',')
           echo "instance_ips=$IPS" >> $GITHUB_OUTPUT
 
-  # ============================================
-  # JOB 2 : ANSIBLE — Configurer les serveurs
-  # ============================================
   ansible:
     name: Configure Servers
     runs-on: ubuntu-latest
@@ -64,7 +59,7 @@ jobs:
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Ansible
         run: |
@@ -90,9 +85,6 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
 
-  # ============================================
-  # JOB 3 : DESTROY — Nettoyer (manuel uniquement)
-  # ============================================
   destroy:
     name: Destroy Infrastructure
     if: github.event_name == 'workflow_dispatch'
@@ -103,12 +95,13 @@ jobs:
         working-directory: terraform
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: aws-actions/configure-aws-credentials@v2
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          region:                ${{ secrets.AWS_REGION }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
       - uses: hashicorp/setup-terraform@v3
       - name: Terraform Destroy
         run: terraform destroy -var="key_name=my-key" -auto-approve
