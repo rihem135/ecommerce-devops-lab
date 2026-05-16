@@ -61,12 +61,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Ansible (Legacy Version)
+      - name: Install Ansible 2.9
         run: |
           sudo apt update
           sudo apt remove -y ansible ansible-core || true
           sudo apt install -y python3-pip
-          sudo pip3 install ansible==4.0.0
+          sudo pip3 install ansible==2.9.0
 
       - name: Setup SSH Key
         run: |
