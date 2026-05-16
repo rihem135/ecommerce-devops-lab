@@ -1,0 +1,52 @@
+﻿name: Destroy AWS Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Tapez "CONFIRM" pour confirmer la suppression'
+        required: true
+        type: string
+
+jobs:
+  destroy:
+    name: Destroy All Resources
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Vérification de confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "CONFIRM" ]; then
+            echo "❌ Veuillez taper CONFIRM pour confirmer la suppression"
+            exit 1
+          fi
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
+
+      - name: Nettoyage final des ressources orphelines
+        run: |
+          echo "🧹 Nettoyage des ressources restantes..."
+          aws elbv2 delete-load-balancer --load-balancer-arn $(aws elbv2 describe-load-balancers --names ecommerce-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text) 2>/dev/null || echo "ALB déjà supprimé"
+          aws elbv2 delete-target-group --target-group-arn $(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[0].TargetGroupArn' --output text) 2>/dev/null || echo "Target Group déjà supprimé"
