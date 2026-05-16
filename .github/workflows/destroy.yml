@@ -1,4 +1,4 @@
-﻿name: Destroy AWS Infrastructure (Complet)
+﻿name: Destroy AWS Infrastructure (Ultra Robuste)
 
 on:
   workflow_dispatch:
@@ -42,76 +42,132 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      - name: Terraform Destroy
+      - name: Terraform Destroy (Tentative 1)
         run: terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
         continue-on-error: true
 
-      - name: Nettoyage forcé des ressources (ordre correct)
+      - name: Attente 30 secondes
+        run: sleep 30
+
+      - name: Terraform Destroy (Tentative 2)
+        run: terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
+        continue-on-error: true
+
+      - name: Nettoyage forcé ULTRA COMPLET
         run: |
-          echo "========================================="
-          echo "🧹 ÉTAPE 1/5: Suppression des instances EC2..."
-          echo "========================================="
-          for instance_id in $(aws ec2 describe-instances --filters "Name=tag:Name,Values=EC2-Web-*" "Name=instance-state-name,Values=running,pending,stopping,stopped" --query 'Reservations[*].Instances[*].InstanceId' --output text); do
-            echo "  Terminaison de l'instance: $instance_id"
+          echo "============================================================"
+          echo "🧹 DÉBUT DU NETTOYAGE FORCÉ ULTRA COMPLET"
+          echo "============================================================"
+
+          # 1. SUPPRESSION DES INSTANCES EC2
+          echo ""
+          echo "📌 1/8: Suppression des instances EC2..."
+          for instance_id in $(aws ec2 describe-instances --filters "Name=tag:Name,Values=EC2-Web-*" --query 'Reservations[*].Instances[*].InstanceId' --output text); do
+            echo "  ✅ Terminaison de l'instance: $instance_id"
             aws ec2 terminate-instances --instance-ids $instance_id
           done
 
+          # 2. SUPPRESSION DES LOAD BALANCERS
           echo ""
-          echo "========================================="
-          echo "🧹 ÉTAPE 2/5: Suppression des Load Balancers..."
-          echo "========================================="
+          echo "📌 2/8: Suppression des Load Balancers..."
           for alb_arn in $(aws elbv2 describe-load-balancers --names ecommerce-alb --query 'LoadBalancers[*].LoadBalancerArn' --output text 2>/dev/null); do
-            echo "  Suppression de l'ALB: $alb_arn"
+            echo "  ✅ Suppression de l'ALB: $alb_arn"
             aws elbv2 delete-load-balancer --load-balancer-arn $alb_arn
           done
 
+          # 3. SUPPRESSION DES TARGET GROUPS
           echo ""
-          echo "========================================="
-          echo "🧹 ÉTAPE 3/5: Suppression des Target Groups..."
-          echo "========================================="
+          echo "📌 3/8: Suppression des Target Groups..."
           for tg_arn in $(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[*].TargetGroupArn' --output text 2>/dev/null); do
-            echo "  Suppression du Target Group: $tg_arn"
+            echo "  ✅ Suppression du Target Group: $tg_arn"
             aws elbv2 delete-target-group --target-group-arn $tg_arn
           done
 
+          # 4. SUPPRESSION DES SECURITY GROUPS
           echo ""
-          echo "========================================="
-          echo "🧹 ÉTAPE 4/5: Suppression des Security Groups..."
-          echo "========================================="
+          echo "📌 4/8: Suppression des Security Groups..."
           for sg_id in $(aws ec2 describe-security-groups --filters "Name=group-name,Values=alb-sg,ec2-sg" --query 'SecurityGroups[*].GroupId' --output text 2>/dev/null); do
-            echo "  Suppression du Security Group: $sg_id"
-            aws ec2 delete-security-group --group-id $sg_id 2>/dev/null || echo "    Impossible de supprimer $sg_id (peut-être utilisé)"
+            echo "  ✅ Suppression du Security Group: $sg_id"
+            aws ec2 delete-security-group --group-id $sg_id 2>/dev/null || echo "     ⚠️ Impossible de supprimer $sg_id (sera supprimé avec le VPC)"
           done
 
+          # 5. SUPPRESSION DES VPC
           echo ""
-          echo "========================================="
-          echo "🧹 ÉTAPE 5/5: Suppression des VPC..."
-          echo "========================================="
+          echo "📌 5/8: Suppression complète des VPC et leurs dépendances..."
           for vpc_id in $(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ecommerce-vpc" --query 'Vpcs[*].VpcId' --output text); do
-            echo "  Suppression des sous-réseaux du VPC: $vpc_id"
-            for subnet_id in $(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$vpc_id" --query 'Subnets[*].SubnetId' --output text); do
-              echo "    Suppression du sous-réseau: $subnet_id"
-              aws ec2 delete-subnet --subnet-id $subnet_id 2>/dev/null
+            echo ""
+            echo "  🔧 Traitement du VPC: $vpc_id"
+            
+            # 5a. Suppression des instances dans ce VPC
+            echo "     📍 Suppression des instances..."
+            for instance_id in $(aws ec2 describe-instances --filters "Name=vpc-id,Values=$vpc_id" --query 'Reservations[*].Instances[*].InstanceId' --output text); do
+              aws ec2 terminate-instances --instance-ids $instance_id
             done
             
-            echo "  Suppression de la route table principale du VPC: $vpc_id"
+            # 5b. Suppression des ENI (interfaces réseau)
+            echo "     📍 Suppression des interfaces réseau (ENI)..."
+            for eni_id in $(aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$vpc_id" --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text); do
+              aws ec2 delete-network-interface --network-interface-id $eni_id 2>/dev/null || echo "       ⚠️ ENI $eni_id déjà supprimée"
+            done
+            
+            # 5c. Suppression des sous-réseaux
+            echo "     📍 Suppression des sous-réseaux..."
+            for subnet_id in $(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$vpc_id" --query 'Subnets[*].SubnetId' --output text); do
+              aws ec2 delete-subnet --subnet-id $subnet_id 2>/dev/null || echo "       ⚠️ Sous-réseau $subnet_id déjà supprimé"
+            done
+            
+            # 5d. Suppression des route tables (non principales)
+            echo "     📍 Suppression des route tables..."
             for route_table_id in $(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$vpc_id" --query 'RouteTables[?Associations[0].Main==`false`].RouteTableId' --output text); do
-              echo "    Suppression de la route table: $route_table_id"
               aws ec2 delete-route-table --route-table-id $route_table_id 2>/dev/null
             done
             
-            echo "  Suppression de l'Internet Gateway du VPC: $vpc_id"
+            # 5e. Suppression des Internet Gateways
+            echo "     📍 Suppression des Internet Gateways..."
             for igw_id in $(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$vpc_id" --query 'InternetGateways[*].InternetGatewayId' --output text); do
-              echo "    Détachement et suppression de l'IGW: $igw_id"
               aws ec2 detach-internet-gateway --internet-gateway-id $igw_id --vpc-id $vpc_id 2>/dev/null
               aws ec2 delete-internet-gateway --internet-gateway-id $igw_id 2>/dev/null
             done
             
-            echo "  Suppression finale du VPC: $vpc_id"
-            aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "    Impossible de supprimer $vpc_id"
+            # 5f. Suppression finale du VPC
+            echo "     📍 Suppression finale du VPC..."
+            aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "       ⚠️ VPC $vpc_id déjà supprimé"
           done
 
+          # 6. NETTOYAGE DES RESSOURCES SANS VPC (orphelines)
           echo ""
-          echo "========================================="
-          echo "✅ Nettoyage terminé !"
-          echo "========================================="
+          echo "📌 6/8: Nettoyage des ressources orphelines..."
+          
+          # 6a. Suppression des ENI orphelines
+          for eni_id in $(aws ec2 describe-network-interfaces --filters "Name=description,Values=ELB*" --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text 2>/dev/null); do
+            echo "  ✅ Suppression ENI orpheline: $eni_id"
+            aws ec2 delete-network-interface --network-interface-id $eni_id 2>/dev/null
+          done
+          
+          # 6b. Suppression des Security Groups orphelins
+          for sg_id in $(aws ec2 describe-security-groups --filters "Name=group-name,Values=alb-sg,ec2-sg" --query 'SecurityGroups[*].GroupId' --output text 2>/dev/null); do
+            echo "  ✅ Suppression Security Group orphelin: $sg_id"
+            aws ec2 delete-security-group --group-id $sg_id 2>/dev/null
+          done
+
+          # 7. VÉRIFICATION FINALE
+          echo ""
+          echo "📌 7/8: Vérification des ressources restantes..."
+          remaining_vpcs=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ecommerce-vpc" --query 'Vpcs[*].VpcId' --output text)
+          if [ -n "$remaining_vpcs" ]; then
+            echo "  ⚠️ Attention: Il reste des VPC: $remaining_vpcs"
+          else
+            echo "  ✅ Aucun VPC ecommerce-vpc restant !"
+          fi
+
+          # 8. TENTATIVE FINALE DE DESTROY TERRAFORM
+          echo ""
+          echo "📌 8/8: Tentative finale de Terraform Destroy..."
+          cd terraform
+          terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
+          cd ..
+
+          echo ""
+          echo "============================================================"
+          echo "✅ NETTOYAGE ULTRA COMPLET TERMINÉ !"
+          echo "============================================================"
