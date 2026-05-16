@@ -8,7 +8,7 @@
 
   tasks:
 
-    - name: Installer Python 3 (nécessaire pour Ansible)
+    - name: Installer Python 3
       raw: yum install -y python3 python3-pip
       register: result
       changed_when: result.rc == 0
@@ -49,39 +49,38 @@
       changed_when: result.rc == 0
 
     - name: Copier docker-compose.yml
-      raw: cat > {{ app_dir }}/docker-compose.yml << 'EOF'
-{{ lookup('file', 'docker-compose.yml') }}
-EOF
-      register: result
-      changed_when: result.rc == 0
+      copy:
+        src: docker-compose.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        owner: ec2-user
 
     - name: Copier nginx.conf
-      raw: cat > {{ app_dir }}/nginx.conf << 'EOF'
-{{ lookup('file', 'nginx.conf') }}
-EOF
-      register: result
-      changed_when: result.rc == 0
+      copy:
+        src: nginx.conf
+        dest: "{{ app_dir }}/nginx.conf"
+        owner: ec2-user
 
     - name: Créer le dossier app
-      raw: mkdir -p {{ app_dir }}/app
-      register: result
-      changed_when: result.rc == 0
+      file:
+        path: "{{ app_dir }}/app"
+        state: directory
+        owner: ec2-user
+        mode: '0755'
 
     - name: Copier server.js
-      raw: cat > {{ app_dir }}/app/server.js << 'EOF'
-{{ lookup('file', 'app/server.js') }}
-EOF
-      register: result
-      changed_when: result.rc == 0
+      copy:
+        src: app/server.js
+        dest: "{{ app_dir }}/app/server.js"
+        owner: ec2-user
 
     - name: Copier package.json
-      raw: cat > {{ app_dir }}/app/package.json << 'EOF'
-{{ lookup('file', 'app/package.json') }}
-EOF
-      register: result
-      changed_when: result.rc == 0
+      copy:
+        src: app/package.json
+        dest: "{{ app_dir }}/app/package.json"
+        owner: ec2-user
 
     - name: Lancer les conteneurs Docker
-      raw: cd {{ app_dir }} && /usr/local/bin/docker-compose up -d
-      register: result
-      changed_when: result.rc == 0
+      shell: |
+        cd {{ app_dir }}
+        /usr/local/bin/docker-compose up -d
+      become_user: ec2-user
