@@ -1,0 +1,55 @@
+﻿---
+- name: Déploiement de l'application e-commerce
+  hosts: web
+  become: yes
+  vars:
+    app_dir: /opt/ecommerce
+
+  tasks:
+
+    - name: Mise à jour des paquets
+      yum:
+        name: "*"
+        state: latest
+
+    - name: Installer Docker
+      yum:
+        name: docker
+        state: present
+
+    - name: Démarrer et activer Docker
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ajouter ec2-user au groupe docker
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+
+    - name: Installer Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Créer le répertoire de l'application
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: ec2-user
+        mode: '0755'
+
+    - name: Copier docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        owner: ec2-user
+
+    - name: Lancer les conteneurs Docker
+      shell: |
+        cd {{ app_dir }}
+        docker-compose up -d
+      become_user: ec2-user
