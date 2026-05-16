@@ -40,7 +40,7 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -var="key_name=my-key" -out=tfplan
+        run: terraform plan -var="key_name=${{ secrets.AWS_KEY_NAME }}" -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
@@ -104,4 +104,4 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
       - uses: hashicorp/setup-terraform@v3
       - name: Terraform Destroy
-        run: terraform destroy -var="key_name=my-key" -auto-approve
+        run: terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
