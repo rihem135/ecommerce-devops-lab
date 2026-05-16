@@ -1,15 +1,15 @@
-ï»¿provider "aws" {
+provider "aws" {
   region = var.aws_region
 }
 
-# VPC : rÃ©seau virtuel isolÃ©
+# VPC : réseau virtuel isolé
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
   tags = { Name = "ecommerce-vpc" }
 }
 
-# Internet Gateway : accÃ¨s internet pour le subnet public
+# Internet Gateway : accès internet pour le subnet public
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 }
@@ -24,7 +24,7 @@ resource "aws_subnet" "public" {
   tags = { Name = "public-subnet-${count.index}" }
 }
 
-# Subnet privÃ© : pour les EC2
+# Subnet privé : pour les EC2
 resource "aws_subnet" "private" {
   count             = 2
   vpc_id            = aws_vpc.main.id
@@ -35,7 +35,7 @@ resource "aws_subnet" "private" {
 
 data "aws_availability_zones" "available" {}
 
-# Route table : permet l'accÃ¨s internet via l'IGW
+# Route table : permet l'accès internet via l'IGW
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
   route {
@@ -97,7 +97,7 @@ resource "aws_security_group" "ec2_sg" {
 # Instances EC2 (2 serveurs web)
 resource "aws_instance" "web" {
   count                  = var.instance_count
-  ami                    = "ami-0c02fb55956c7d316"
+  ami                    = "ami-0c94855ba95c71c99"
   instance_type          = "t3.micro"
   subnet_id              = aws_subnet.public[count.index].id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
@@ -137,7 +137,7 @@ resource "aws_lb_target_group_attachment" "attach" {
   port             = 80
 }
 
-# Listener : l'ALB Ã©coute sur le port 80 et forwarde vers le TG
+# Listener : l'ALB écoute sur le port 80 et forwarde vers le TG
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.alb.arn
   port              = 80
