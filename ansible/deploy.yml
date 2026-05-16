@@ -11,11 +11,13 @@
       yum:
         name: "*"
         state: latest
+      when: ansible_os_family == "RedHat"
 
-    - name: Installer Docker
+    - name: Installer Docker (Amazon Linux)
       yum:
         name: docker
         state: present
+      when: ansible_os_family == "RedHat"
 
     - name: Démarrer et activer Docker
       service:
@@ -48,8 +50,33 @@
         dest: "{{ app_dir }}/docker-compose.yml"
         owner: ec2-user
 
+    - name: Copier nginx.conf
+      copy:
+        src: nginx.conf
+        dest: "{{ app_dir }}/nginx.conf"
+        owner: ec2-user
+
+    - name: Créer le dossier app
+      file:
+        path: "{{ app_dir }}/app"
+        state: directory
+        owner: ec2-user
+        mode: '0755'
+
+    - name: Copier server.js
+      copy:
+        src: app/server.js
+        dest: "{{ app_dir }}/app/server.js"
+        owner: ec2-user
+
+    - name: Copier package.json
+      copy:
+        src: app/package.json
+        dest: "{{ app_dir }}/app/package.json"
+        owner: ec2-user
+
     - name: Lancer les conteneurs Docker
       shell: |
         cd {{ app_dir }}
-        docker-compose up -d
+        /usr/local/bin/docker-compose up -d
       become_user: ec2-user

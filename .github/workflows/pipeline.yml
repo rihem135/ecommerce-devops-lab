@@ -65,6 +65,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y ansible jq
+          sudo pip3 install ansible==5.10.0
 
       - name: Setup SSH Key
         run: |
@@ -75,15 +76,16 @@ jobs:
         run: |
           echo "[web]" > inventory.ini
           for ip in $(echo "${{ needs.terraform.outputs.instance_ips }}" | tr ',' ' '); do
-            echo "$ip ansible_user=ec2-user ansible_ssh_private_key_file=key.pem" >> inventory.ini
+            echo "$ip ansible_user=ec2-user ansible_ssh_private_key_file=key.pem ansible_python_interpreter=/usr/bin/python3" >> inventory.ini
           done
           cat inventory.ini
 
       - name: Run Ansible Deployment
         run: |
-          ansible-playbook -i inventory.ini ansible/deploy.yml
+          ansible-playbook -i inventory.ini ansible/deploy.yml -vvv
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_PYTHON_INTERPRETER: /usr/bin/python3
 
   destroy:
     name: Destroy Infrastructure
