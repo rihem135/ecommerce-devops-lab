@@ -53,15 +53,15 @@ jobs:
         run: terraform destroy -var="key_name=${{ secrets.AWS_KEY_NAME }}" -auto-approve
         continue-on-error: true
 
-      - name: Nettoyage forcé (sans erreur sur les VPC)
+      - name: Nettoyage forcé complet
         run: |
           echo "============================================================"
-          echo "🧹 NETTOYAGE DES RESSOURCES"
+          echo "🧹 NETTOYAGE COMPLET DES RESSOURCES"
           echo "============================================================"
 
           # 1. Suppression des instances EC2
           echo ""
-          echo "📌 Suppression des instances EC2..."
+          echo "📌 1/7: Suppression des instances EC2..."
           for instance_id in $(aws ec2 describe-instances --filters "Name=tag:Name,Values=EC2-Web-*" --query 'Reservations[*].Instances[*].InstanceId' --output text 2>/dev/null); do
             echo "  ✅ Terminaison: $instance_id"
             aws ec2 terminate-instances --instance-ids $instance_id 2>/dev/null || true
@@ -69,39 +69,82 @@ jobs:
 
           # 2. Suppression des Load Balancers
           echo ""
-          echo "📌 Suppression des Load Balancers..."
+          echo "📌 2/7: Suppression des Load Balancers..."
           for alb_arn in $(aws elbv2 describe-load-balancers --names ecommerce-alb --query 'LoadBalancers[*].LoadBalancerArn' --output text 2>/dev/null); do
             echo "  ✅ Suppression ALB: $alb_arn"
             aws elbv2 delete-load-balancer --load-balancer-arn $alb_arn 2>/dev/null || true
           done
 
-          # 3. Suppression des Target Groups
+          # 3. Suppression FORCÉE des Target Groups
           echo ""
-          echo "📌 Suppression des Target Groups..."
+          echo "📌 3/7: Suppression FORCÉE des Target Groups..."
+          
+          # Méthode 1: Par nom
           for tg_arn in $(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[*].TargetGroupArn' --output text 2>/dev/null); do
-            echo "  ✅ Suppression TG: $tg_arn"
+            echo "  ✅ Suppression TG (par nom): $tg_arn"
+            aws elbv2 delete-target-group --target-group-arn $tg_arn 2>/dev/null || true
+          done
+          
+          # Méthode 2: Par tag (au cas où)
+          for tg_arn in $(aws elbv2 describe-target-groups --query 'TargetGroups[?contains(TargetGroupName,`ecommerce-tg`)].TargetGroupArn' --output text 2>/dev/null); do
+            echo "  ✅ Suppression TG (par tag): $tg_arn"
+            aws elbv2 delete-target-group --target-group-arn $tg_arn 2>/dev/null || true
+          done
+          
+          # Méthode 3: Attendre puis réessayer
+          echo "  ⏳ Attente 10 secondes avant réessai..."
+          sleep 10
+          
+          for tg_arn in $(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[*].TargetGroupArn' --output text 2>/dev/null); do
+            echo "  ✅ Suppression TG (2ème tentative): $tg_arn"
             aws elbv2 delete-target-group --target-group-arn $tg_arn 2>/dev/null || true
           done
 
           # 4. Suppression des Security Groups
           echo ""
-          echo "📌 Suppression des Security Groups..."
+          echo "📌 4/7: Suppression des Security Groups..."
           for sg_id in $(aws ec2 describe-security-groups --filters "Name=group-name,Values=alb-sg,ec2-sg" --query 'SecurityGroups[*].GroupId' --output text 2>/dev/null); do
             echo "  ✅ Suppression SG: $sg_id"
             aws ec2 delete-security-group --group-id $sg_id 2>/dev/null || true
           done
 
-          # 5. Suppression des VPC (avec ignore erreur)
+          # 5. Suppression des ENI orphelines
           echo ""
-          echo "📌 Suppression des VPC (optionnelle - ignore erreur)..."
+          echo "📌 5/7: Suppression des interfaces réseau orphelines..."
+          for eni_id in $(aws ec2 describe-network-interfaces --filters "Name=description,Values=ELB*" --query 'NetworkInterfaces[*].NetworkInterfaceId' --output text 2>/dev/null); do
+            echo "  ✅ Suppression ENI: $eni_id"
+            aws ec2 delete-network-interface --network-interface-id $eni_id 2>/dev/null || true
+          done
+
+          # 6. Suppression des VPC (optionnelle)
+          echo ""
+          echo "📌 6/7: Suppression des VPC..."
           for vpc_id in $(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ecommerce-vpc" --query 'Vpcs[*].VpcId' --output text 2>/dev/null); do
             echo "  Tentative suppression VPC: $vpc_id"
-            aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "  ⚠️ VPC $vpc_id non supprimé (à faire manuellement si besoin)"
+            aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "  ⚠️ VPC $vpc_id non supprimé (à faire manuellement)"
           done
+
+          # 7. Vérification finale
+          echo ""
+          echo "📌 7/7: Vérification finale..."
+          
+          remaining_tg=$(aws elbv2 describe-target-groups --names ecommerce-tg --query 'TargetGroups[*].TargetGroupName' --output text 2>/dev/null)
+          if [ -n "$remaining_tg" ]; then
+            echo "  ⚠️ Target Group restant: $remaining_tg (à supprimer manuellement)"
+          else
+            echo "  ✅ Aucun Target Group restant !"
+          fi
+          
+          remaining_vpcs=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ecommerce-vpc" --query 'Vpcs[*].VpcId' --output text 2>/dev/null)
+          if [ -n "$remaining_vpcs" ]; then
+            echo "  ⚠️ VPC restants: $remaining_vpcs (à supprimer manuellement)"
+          else
+            echo "  ✅ Aucun VPC restant !"
+          fi
 
           echo ""
           echo "============================================================"
-          echo "✅ NETTOYAGE TERMINÉ (VPC à supprimer manuellement si besoin)"
+          echo "✅ NETTOYAGE TERMINÉ !"
           echo "============================================================"
         continue-on-error: true
 
@@ -111,14 +154,8 @@ jobs:
           echo "============================================================"
           echo "📊 RÉSUMÉ FINAL"
           echo "============================================================"
-          
-          remaining_vpcs=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ecommerce-vpc" --query 'Vpcs[*].VpcId' --output text 2>/dev/null)
-          if [ -n "$remaining_vpcs" ]; then
-            echo "⚠️ Il reste des VPC à supprimer manuellement: $remaining_vpcs"
-            echo "   Allez dans AWS Console → VPC → Your VPCs → Supprimez-les"
-          else
-            echo "✅ Aucun VPC restant !"
-          fi
-          
+          echo "✅ Destroy exécuté avec succès !"
           echo ""
-          echo "✅ Destroy terminé avec succès !"
+          echo "Si des ressources persistent, supprimez-les manuellement :"
+          echo "  - Target Groups: AWS Console → EC2 → Target Groups"
+          echo "  - VPC: AWS Console → VPC → Your VPCs"
