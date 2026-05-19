@@ -44,164 +44,38 @@
       changed_when: result.rc == 0
 
     - name: Créer le répertoire de l'application
-      raw: mkdir -p {{ app_dir }}
-      register: result
-      changed_when: result.rc == 0
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
 
-    - name: Créer le fichier docker-compose.yml
-      raw: |
-        cat > {{ app_dir }}/docker-compose.yml << 'DOCKEREOF'
-        version: '3.8'
-        services:
-          mongodb:
-            image: mongo:6
-            container_name: mongodb
-            restart: always
-            volumes:
-              - mongo_data:/data/db
-            networks:
-              - app_network
-          app:
-            image: node:18-alpine
-            container_name: nodejs_app
-            working_dir: /app
-            restart: always
-            environment:
-              - MONGO_URL=mongodb://mongodb:27017/ecommerce
-              - PORT=3000
-            volumes:
-              - ./app:/app
-            command: sh -c "npm install && node server.js"
-            depends_on:
-              - mongodb
-            networks:
-              - app_network
-          nginx:
-            image: nginx:alpine
-            container_name: nginx_proxy
-            restart: always
-            ports:
-              - "80:80"
-            volumes:
-              - ./nginx.conf:/etc/nginx/nginx.conf
-            depends_on:
-              - app
-            networks:
-              - app_network
-        volumes:
-          mongo_data:
-        networks:
-          app_network:
-            driver: bridge
-        DOCKEREOF
-      register: result
-      changed_when: result.rc == 0
+    - name: Copier docker-compose.yml
+      copy:
+        src: docker-compose.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
 
-    - name: Créer le fichier nginx.conf
-      raw: |
-        cat > {{ app_dir }}/nginx.conf << 'NGINXEOF'
-        events {
-            worker_connections 1024;
-        }
-        http {
-            server {
-                listen 80;
-                location / {
-                    proxy_pass http://app:3000;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                }
-            }
-        }
-        NGINXEOF
-      register: result
-      changed_when: result.rc == 0
+    - name: Copier nginx.conf
+      copy:
+        src: nginx.conf
+        dest: "{{ app_dir }}/nginx.conf"
 
     - name: Créer le dossier app
-      raw: mkdir -p {{ app_dir }}/app
-      register: result
-      changed_when: result.rc == 0
+      file:
+        path: "{{ app_dir }}/app"
+        state: directory
+        mode: '0755'
 
-    - name: Créer le fichier server.js
-      raw: |
-        cat > {{ app_dir }}/app/server.js << 'JSAPPEOF'
-        const express = require('express');
-        const mongoose = require('mongoose');
-        const app = express();
+    - name: Copier server.js
+      copy:
+        src: app/server.js
+        dest: "{{ app_dir }}/app/server.js"
 
-        // Connexion à MongoDB
-        mongoose.connect(process.env.MONGO_URL || 'mongodb://mongodb:27017/ecommerce');
-
-        // Définition du modèle Product
-        const Product = mongoose.model('Product', {
-          name: String,
-          price: Number
-        });
-
-        // Fonction d'initialisation des produits
-        const initProducts = async () => {
-          const count = await Product.countDocuments();
-          if (count === 0) {
-            await Product.insertMany([
-              { name: 'Laptop', price: 1200 },
-              { name: 'Phone', price: 800 },
-              { name: 'Tablet', price: 500 }
-            ]);
-            console.log('✅ Produits initialisés dans MongoDB');
-          }
-        };
-
-        // Route principale
-        app.get('/', async (req, res) => {
-          try {
-            const products = await Product.find();
-            const html = `
-              <h1>E-Commerce Store</h1>
-              <ul>
-                ${products.map(p => `<li>${p.name} — $${p.price}</li>`).join('')}
-              </ul>
-              <p><small>📦 Données stockées dans MongoDB</small></p>
-            `;
-            res.send(html);
-          } catch (error) {
-            res.send('<h1>Erreur</h1><p>Impossible de charger les produits</p>');
-          }
-        });
-
-        // Route API JSON
-        app.get('/api/products', async (req, res) => {
-          try {
-            const products = await Product.find();
-            res.json(products);
-          } catch (error) {
-            res.status(500).json({ error: 'Erreur serveur' });
-          }
-        });
-
-        initProducts();
-
-        const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-        JSAPPEOF
-      register: result
-      changed_when: result.rc == 0
-
-    - name: Créer le fichier package.json
-      raw: |
-        cat > {{ app_dir }}/app/package.json << 'PKGEOF'
-        {
-          "name": "ecommerce-app",
-          "version": "1.0.0",
-          "dependencies": {
-            "express": "^4.18.0",
-            "mongoose": "^8.0.0"
-          }
-        }
-        PKGEOF
-      register: result
-      changed_when: result.rc == 0
+    - name: Copier package.json
+      copy:
+        src: app/package.json
+        dest: "{{ app_dir }}/app/package.json"
 
     - name: Lancer les conteneurs Docker
-      raw: cd {{ app_dir }} && /usr/local/bin/docker-compose up -d
-      register: result
-      changed_when: result.rc == 0
+      shell: |
+        cd {{ app_dir }}
+        /usr/local/bin/docker-compose up -d
