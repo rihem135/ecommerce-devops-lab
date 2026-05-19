@@ -54,7 +54,8 @@
       changed_when: result.rc == 0
 
     - name: Copier docker-compose.yml
-      raw: cat > {{ app_dir }}/docker-compose.yml << 'EOF'
+      raw: |
+        cat > {{ app_dir }}/docker-compose.yml << 'DOCKEREOF'
         version: '3.8'
         services:
           mongodb:
@@ -97,12 +98,13 @@
         networks:
           app_network:
             driver: bridge
-        EOF
+        DOCKEREOF
       register: result
       changed_when: result.rc == 0
 
     - name: Copier nginx.conf
-      raw: cat > {{ app_dir }}/nginx.conf << 'EOF'
+      raw: |
+        cat > {{ app_dir }}/nginx.conf << 'NGINXEOF'
         events {
             worker_connections 1024;
         }
@@ -116,12 +118,13 @@
                 }
             }
         }
-        EOF
+        NGINXEOF
       register: result
       changed_when: result.rc == 0
 
     - name: Copier server.js
-      raw: cat > {{ app_dir }}/app/server.js << 'EOF'
+      raw: |
+        cat > {{ app_dir }}/app/server.js << 'JSAPPEOF'
         const express = require('express');
         const mongoose = require('mongoose');
         const app = express();
@@ -148,7 +151,7 @@
             const html = `
               <h1>E-Commerce Store</h1>
               <ul>
-                \${products.map(p => `<li>\${p.name} — $\${p.price}</li>`).join('')}
+                ${products.map(p => `<li>${p.name} — $${p.price}</li>`).join('')}
               </ul>
               <p><small>Donnees stockees dans MongoDB</small></p>
             `;
@@ -171,12 +174,13 @@
 
         const PORT = process.env.PORT || 3000;
         app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-        EOF
+        JSAPPEOF
       register: result
       changed_when: result.rc == 0
 
     - name: Copier package.json
-      raw: cat > {{ app_dir }}/app/package.json << 'EOF'
+      raw: |
+        cat > {{ app_dir }}/app/package.json << 'PKGEOF'
         {
           "name": "ecommerce-app",
           "version": "1.0.0",
@@ -185,7 +189,7 @@
             "mongoose": "^8.0.0"
           }
         }
-        EOF
+        PKGEOF
       register: result
       changed_when: result.rc == 0
 
