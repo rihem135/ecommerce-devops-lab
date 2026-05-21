@@ -129,19 +129,15 @@
         const mongoose = require('mongoose');
         const app = express();
 
-        // Middleware pour parser le JSON
         app.use(express.json());
 
-        // Connexion à MongoDB
         mongoose.connect(process.env.MONGO_URL || 'mongodb://mongodb:27017/ecommerce');
 
-        // Définition du modèle Product
         const Product = mongoose.model('Product', {
           name: String,
           price: Number
         });
 
-        // Fonction d'initialisation des produits
         const initProducts = async () => {
           const count = await Product.countDocuments();
           if (count === 0) {
@@ -156,7 +152,6 @@
           }
         };
 
-        // Route API JSON
         app.get('/api/products', async (req, res) => {
           try {
             const products = await Product.find();
@@ -166,7 +161,6 @@
           }
         });
 
-        // Route POST pour ajouter un produit
         app.post('/api/products', async (req, res) => {
           try {
             const { name, price } = req.body;
@@ -181,7 +175,6 @@
           }
         });
 
-        // Route principale - Page d'accueil avec design moderne
         app.get('/', async (req, res) => {
           try {
             const products = await Product.find();
@@ -208,97 +201,10 @@
 
             let productsHtml = '';
             for (const p of products) {
-              productsHtml += `
-                <div class="product-card">
-                  <div class="product-icon">${getIcon(p.name)}</div>
-                  <div class="product-name">${escapeHtml(p.name)}</div>
-                  <div class="product-price">${p.price}</div>
-                  <button class="buy-btn" onclick="alert('${escapeHtml(p.name)} ajouté au panier !')">
-                    🛒 Ajouter au panier
-                  </button>
-                </div>
-              `;
+              productsHtml += '\n                <div class="product-card">\n                  <div class="product-icon">' + getIcon(p.name) + '</div>\n                  <div class="product-name">' + escapeHtml(p.name) + '</div>\n                  <div class="product-price">' + p.price + '</div>\n                  <button class="buy-btn" onclick="alert(\'' + escapeHtml(p.name) + ' ajouté au panier !\')">\n                    🛒 Ajouter au panier\n                  </button>\n                </div>';
             }
 
-            const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>E-Commerce Store</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      padding: 20px;
-    }
-    .container { max-width: 1200px; margin: 0 auto; }
-    .header { text-align: center; color: white; margin-bottom: 40px; padding: 40px 20px; }
-    .header h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
-    .header p { font-size: 1.2rem; opacity: 0.9; }
-    .products-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 25px;
-      margin-bottom: 40px;
-    }
-    .product-card {
-      background: white;
-      border-radius: 15px;
-      padding: 25px;
-      text-align: center;
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .product-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-    .product-icon { font-size: 3rem; margin-bottom: 15px; }
-    .product-name { font-size: 1.5rem; font-weight: 600; color: #333; margin-bottom: 10px; }
-    .product-price { font-size: 2rem; font-weight: bold; color: #667eea; margin-bottom: 15px; }
-    .product-price::before { content: '$'; font-size: 1.2rem; }
-    .buy-btn {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      padding: 12px 30px;
-      border-radius: 25px;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: opacity 0.3s ease;
-    }
-    .buy-btn:hover { opacity: 0.9; }
-    .footer { text-align: center; color: white; padding: 20px; margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.2); }
-    .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; margin-top: 10px; }
-    .api-link { color: white; text-decoration: none; border-bottom: 1px dashed white; }
-    .api-link:hover { border-bottom: 1px solid white; }
-    @media (max-width: 768px) {
-      .header h1 { font-size: 2rem; }
-      .products-grid { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>🛍️ E-Commerce Store</h1>
-      <p>Découvrez nos meilleurs produits</p>
-    </div>
-    <div class="products-grid">
-      ${productsHtml}
-    </div>
-    <div class="footer">
-      <p>📦 Données stockées dans MongoDB</p>
-      <div class="badge">
-        🔗 API JSON : <a href="/api/products" class="api-link">/api/products</a>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
+            const html = '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>E-Commerce Store</title>\n  <style>\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    body {\n      font-family: \'Segoe UI\', Tahoma, Geneva, Verdana, sans-serif;\n      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n      min-height: 100vh;\n      padding: 20px;\n    }\n    .container { max-width: 1200px; margin: 0 auto; }\n    .header { text-align: center; color: white; margin-bottom: 40px; padding: 40px 20px; }\n    .header h1 { font-size: 3rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }\n    .header p { font-size: 1.2rem; opacity: 0.9; }\n    .products-grid {\n      display: grid;\n      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));\n      gap: 25px;\n      margin-bottom: 40px;\n    }\n    .product-card {\n      background: white;\n      border-radius: 15px;\n      padding: 25px;\n      text-align: center;\n      transition: transform 0.3s ease, box-shadow 0.3s ease;\n      box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n    }\n    .product-card:hover {\n      transform: translateY(-5px);\n      box-shadow: 0 10px 30px rgba(0,0,0,0.2);\n    }\n    .product-icon { font-size: 3rem; margin-bottom: 15px; }\n    .product-name { font-size: 1.5rem; font-weight: 600; color: #333; margin-bottom: 10px; }\n    .product-price { font-size: 2rem; font-weight: bold; color: #667eea; margin-bottom: 15px; }\n    .product-price::before { content: \'$\'; font-size: 1.2rem; }\n    .buy-btn {\n      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n      color: white;\n      border: none;\n      padding: 12px 30px;\n      border-radius: 25px;\n      font-size: 1rem;\n      cursor: pointer;\n      transition: opacity 0.3s ease;\n    }\n    .buy-btn:hover { opacity: 0.9; }\n    .footer { text-align: center; color: white; padding: 20px; margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.2); }\n    .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; margin-top: 10px; }\n    .api-link { color: white; text-decoration: none; border-bottom: 1px dashed white; }\n    .api-link:hover { border-bottom: 1px solid white; }\n    @media (max-width: 768px) {\n      .header h1 { font-size: 2rem; }\n      .products-grid { grid-template-columns: 1fr; }\n    }\n  </style>\n</head>\n<body>\n  <div class="container">\n    <div class="header">\n      <h1>🛍️ E-Commerce Store</h1>\n      <p>Découvrez nos meilleurs produits</p>\n    </div>\n    <div class="products-grid">\n' + productsHtml + '\n    </div>\n    <div class="footer">\n      <p>📦 Données stockées dans MongoDB</p>\n      <div class="badge">\n        🔗 API JSON : <a href="/api/products" class="api-link">/api/products</a>\n      </div>\n    </div>\n  </div>\n</body>\n</html>';
             res.send(html);
           } catch (error) {
             console.error(error);
